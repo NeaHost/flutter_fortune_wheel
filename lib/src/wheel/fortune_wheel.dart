@@ -154,6 +154,9 @@ class FortuneWheel extends HookWidget implements FortuneWidget {
     return 2 * _math.pi * rotationCount * progress;
   }
 
+  /// for animation indicator
+  final bool isAnimated;
+
   /// {@template flutter_fortune_wheel.FortuneWheel}
   /// Creates a new [FortuneWheel] with the given [items], which is centered
   /// on the [selected] value.
@@ -166,6 +169,7 @@ class FortuneWheel extends HookWidget implements FortuneWidget {
   FortuneWheel({
     Key? key,
     required this.items,
+    this.isAnimated = true,
     this.rotationCount = FortuneWidget.kDefaultRotationCount,
     this.selected = const Stream<int>.empty(),
     this.duration = FortuneWidget.kDefaultDuration,
@@ -260,81 +264,82 @@ class FortuneWheel extends HookWidget implements FortuneWidget {
       physics: physics,
       onFling: onFling,
       builder: (context, panState) {
-        return Stack(
-          children: [
-            AnimatedBuilder(
-              animation: rotateAnim,
-              builder: (context, _) {
-                final size = MediaQuery.of(context).size;
-                final meanSize = (size.width + size.height) / 2;
-                final panFactor = 6 / meanSize;
+        return AnimatedBuilder(
+          animation: rotateAnim,
+          builder: (context, _) {
+            final size = MediaQuery.of(context).size;
+            final meanSize = (size.width + size.height) / 2;
+            final panFactor = 6 / meanSize;
 
-                return LayoutBuilder(builder: (context, constraints) {
-                  final wheelData = _WheelData(
-                    constraints: constraints,
-                    itemCount: items.length,
-                    textDirection: Directionality.of(context),
-                  );
+            return LayoutBuilder(builder: (context, constraints) {
+              final wheelData = _WheelData(
+                constraints: constraints,
+                itemCount: items.length,
+                textDirection: Directionality.of(context),
+              );
 
-                  final isAnimatingPanFactor =
-                      rotateAnimCtrl.isAnimating ? 0 : 1;
-                  final selectedAngle =
-                      -2 * _math.pi * (selectedIndex.value / items.length);
-                  final panAngle =
-                      panState.distance * panFactor * isAnimatingPanFactor;
-                  final rotationAngle = _getAngle(rotateAnim.value);
-                  final alignmentOffset = _calculateAlignmentOffset(alignment);
-                  final totalAngle = selectedAngle + panAngle + rotationAngle;
+              final isAnimatingPanFactor = rotateAnimCtrl.isAnimating ? 0 : 1;
+              final selectedAngle =
+                  -2 * _math.pi * (selectedIndex.value / items.length);
+              final panAngle =
+                  panState.distance * panFactor * isAnimatingPanFactor;
+              final rotationAngle = _getAngle(rotateAnim.value);
+              final alignmentOffset = _calculateAlignmentOffset(alignment);
+              final totalAngle = selectedAngle + panAngle + rotationAngle;
 
-                  final focusedIndex = _borderCross(
-                    totalAngle,
-                    lastVibratedAngle,
-                    items.length,
-                    hapticImpact,
-                    _animateArrow, // _tetikle fonksiyonunu burada geçiriyoruz
-                  );
-                  if (focusedIndex != null) {
-                    onFocusItemChanged?.call(focusedIndex % items.length);
-                  }
+              final focusedIndex = _borderCross(
+                totalAngle,
+                lastVibratedAngle,
+                items.length,
+                hapticImpact,
+                _animateArrow, // _tetikle fonksiyonunu burada geçiriyoruz
+              );
+              if (focusedIndex != null) {
+                onFocusItemChanged?.call(focusedIndex % items.length);
+              }
 
-                  final transformedItems = [
-                    for (var i = 0; i < items.length; i++)
-                      TransformedFortuneItem(
-                        item: items[i],
-                        angle: totalAngle +
-                            alignmentOffset +
-                            _calculateSliceAngle(i, items.length),
-                        offset: wheelData.offset,
-                      ),
-                  ];
+              final transformedItems = [
+                for (var i = 0; i < items.length; i++)
+                  TransformedFortuneItem(
+                    item: items[i],
+                    angle: totalAngle +
+                        alignmentOffset +
+                        _calculateSliceAngle(i, items.length),
+                    offset: wheelData.offset,
+                  ),
+              ];
 
-                  return SizedBox.expand(
-                    child: _CircleSlices(
+              return SizedBox.expand(
+                child: Stack(
+                  children: [
+                    _CircleSlices(
                       items: transformedItems,
                       wheelData: wheelData,
                       styleStrategy: styleStrategy,
                     ),
-                  );
-                });
-              },
-            ),
-            for (var it in indicators)
-              IgnorePointer(
-                child: Container(
-                  alignment: it.alignment,
-                  child: AnimatedBuilder(
-                    animation: arrowAnimation,
-                    builder: (context, child) {
-                      return Transform.translate(
-                        offset: Offset(0, arrowAnimation.value),
-                        child: child,
-                      );
-                    },
-                    child: it.child,
-                  ),
+                    for (var it in indicators)
+                      IgnorePointer(
+                        child: Container(
+                          alignment: it.alignment,
+                          child: isAnimated
+                              ? AnimatedBuilder(
+                                  animation: arrowAnimation,
+                                  builder: (context, child) {
+                                    return Transform.translate(
+                                      offset: it.animate(arrowAnimation.value),
+                                      child: child,
+                                    );
+                                  },
+                                  child: it.child,
+                                )
+                              : it.child,
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-          ],
+              );
+            });
+          },
         );
       },
     );
